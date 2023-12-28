@@ -8,44 +8,59 @@
 # since I'm (currently) primarily on Debian, I'm just using apt.
 # feel free to replace with whatever package manager you need
 
-if [[ $EUID -ne 0 ]]; then
-    echo "Please run as root </3"
-    exit 1
-fi
-
 REPOURL="https://github.com/jwilm/alacritty.git"
 
 # first.... duh
-apt update
+sudo apt update
 
 # since we only build from source, we need to be able to build it.
 if [[ ! $(which cargo) ]]; then
     echo "[*] Installing cargo..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+    echo "BAD" && exit 1
+    curl --proto '=https' --tlsv2.2 -sSf https://sh.rustup.rs | sh
+else
+    echo "[*] Cargo is already installed. Skipping cargo installation."
 fi
+
+sudo apt install scdoc -y >/dev/null
 
 cd ~/Downloads
 git clone $REPOURL
 cd ./alacritty
 cargo build --release
 
-# yay we build it, now let's set it up as a desktop entry
-cp target/release/alacritty /usr/local/bin
-cp extra/logo/alacritty-term.svg /usr/share/pixmaps/Alacritty.svg
-desktop-file-install extra/linux/Alacritty.desktop
-update-desktop-database
+# yay we built it, now let's set it up as a desktop entry
+sudo cp target/release/alacritty /usr/local/bin
+sudo cp extra/logo/alacritty-term.svg /usr/share/pixmaps/Alacritty.svg
+sudo desktop-file-install extra/linux/Alacritty.desktop
+sudo update-desktop-database
 
 # now we need to set up the man pages for it
-mkdir -p /usr/local/share/man/man1
-gzip -c extra/alacritty.man |
-    tee /usr/local/share/man/man1/alacritty.1.gz >/dev/null
+set -e
+sudo mkdir -p /usr/local/share/man/man1
+sudo mkdir -p /usr/local/share/man/man5
+scdoc < extra/man/alacritty.1.scd | \
+    gzip -c | \
+    sudo tee /usr/local/share/man/man1/alacritty.1.gz > /dev/null
+scdoc < extra/man/alacritty-msg.1.scd | \
+    gzip -c | \
+    sudo tee /usr/local/share/man/man1/alacritty-msg.1.gz > /dev/null
+scdoc < extra/man/alacritty.5.scd | \
+    gzip -c | \
+    sudo tee /usr/local/share/man/man5/alacritty.5.gz > /dev/null
+scdoc < extra/man/alacritty-bindings.5.scd | \
+    gzip -c | \
+    sudo tee /usr/local/share/man/man5/alacritty-bindings.5.gz > /dev/null
 
 if [[ $SHELL == "/bin/zsh" ]]; then
-    RCFILE="~/.zshrc"
+    RCFILE="$HOME/.zshrc"
 elif [[ $SHELL == "/bin/bash" ]]; then
-    RCFILE="~/.bashrc"
+    RCFILE="$HOME/.bashrc"
 else
     echo "Setup almost complete."
     echo 'Run ["echo source $(pwd)/extra/completions/alacritty.bash" >> ~/<rcfile>]'
     exit 0
 fi
+
+cd "$HOME"
+sudo rm -rf ./Downloads/alacritty
